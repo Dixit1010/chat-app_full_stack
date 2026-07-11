@@ -1,24 +1,32 @@
+const BUBBLE_WIDTHS = [180, 220, 140, 200, 160, 190];
+
+const shimmerClass =
+  "relative overflow-hidden bg-surface-2 before:absolute before:inset-0 " +
+  "before:-translate-x-full before:animate-shimmer " +
+  "before:bg-gradient-to-r before:from-transparent before:via-surface-3/80 before:to-transparent";
+
 const MessageSkeleton = () => {
-  // Create an array of 6 items for skeleton messages
-  const skeletonMessages = Array(6).fill(null);
-
   return (
-    <div className="flex-1 overflow-y-auto p-4 space-y-4">
-      {skeletonMessages.map((_, idx) => (
-        <div key={idx} className={`chat ${idx % 2 === 0 ? "chat-start" : "chat-end"}`}>
-          <div className="chat-image avatar">
-            <div className="size-10 rounded-full">
-              <div className="skeleton w-full h-full rounded-full" />
-            </div>
+    <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-4">
+      {BUBBLE_WIDTHS.map((width, idx) => (
+        <div key={width} className={`flex items-end gap-2 ${idx % 2 === 0 ? "justify-start" : "justify-end"}`}>
+          {/* avatar skeleton */}
+          {idx % 2 === 0 && (
+            <div className={`size-8 rounded-full shrink-0 ${shimmerClass}`} />
+          )}
+          
+          <div className={`flex flex-col gap-1 max-w-[75%] sm:max-w-[60%] ${idx % 2 === 0 ? "items-start" : "items-end"}`}>
+            {/* Message skeleton */}
+            <div
+              className={`h-9 rounded-2xl ${shimmerClass} ${idx % 2 === 0 ? "rounded-bl-sm" : "rounded-br-sm"}`}
+              style={{ width: `${width}px` }}
+            />
           </div>
 
-          <div className="chat-header mb-1">
-            <div className="skeleton h-4 w-16" />
-          </div>
-
-          <div className="chat-bubble bg-transparent p-0">
-            <div className="skeleton h-16 w-[200px]" />
-          </div>
+          {/* avatar skeleton for right side */}
+          {idx % 2 !== 0 && (
+            <div className={`size-8 rounded-full shrink-0 ${shimmerClass}`} />
+          )}
         </div>
       ))}
     </div>
