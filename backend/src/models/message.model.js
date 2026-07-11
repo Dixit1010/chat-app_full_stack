@@ -10,7 +10,10 @@ const messageSchema = new mongoose.Schema(
     receiverId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+    },
+    conversationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Conversation",
     },
     text: {
       type: String,
@@ -18,9 +21,44 @@ const messageSchema = new mongoose.Schema(
     image: {
       type: String,
     },
+    mediaType: {
+      type: String,
+      enum: ["image", "video", "audio"],
+    },
+    reactions: [
+      {
+        userId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        emoji: String,
+      },
+    ],
+    status: {
+      type: String,
+      enum: ["sent", "delivered", "seen"],
+      default: "sent",
+    },
+    edited: {
+      type: Boolean,
+      default: false,
+    },
+    editedAt: {
+      type: Date,
+    },
+    deletedAt: {
+      type: Date,
+    },
+    isEncrypted: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );
+
+messageSchema.index({ conversationId: 1, createdAt: -1 });
+messageSchema.index({ text: "text" });
 
 const Message = mongoose.model("Message", messageSchema);
 
