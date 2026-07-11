@@ -1,6 +1,7 @@
-import { THEMES } from "../constants";
-import { useThemeStore } from "../store/useThemeStore";
-import { Send } from "lucide-react";
+import { useUiThemeStore } from "../store/useUiThemeStore";
+import { Send, Moon, Sun } from "lucide-react";
+import { motion } from "framer-motion";
+import TiltCard from "../components/TiltCard";
 
 const PREVIEW_MESSAGES = [
   { id: 1, content: "Hey! How's it going?", isSent: false },
@@ -8,107 +9,101 @@ const PREVIEW_MESSAGES = [
 ];
 
 const SettingsPage = () => {
-  const { theme, setTheme } = useThemeStore();
+  const { isDark, toggleTheme } = useUiThemeStore();
 
   return (
-    <div className="h-screen container mx-auto px-4 pt-20 max-w-5xl">
-      <div className="space-y-6">
-        <div className="flex flex-col gap-1">
-          <h2 className="text-lg font-semibold">Theme</h2>
-          <p className="text-sm text-base-content/70">Choose a theme for your chat interface</p>
-        </div>
+    <div className="min-h-screen bg-surface text-ink pt-20 pb-10 relative overflow-hidden ambient-glow">
+      <div className="container mx-auto px-4 max-w-5xl relative z-[1]">
+        <motion.div 
+          className="space-y-10"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          {/* Theme Toggle Section */}
+          <section className="space-y-4">
+            <div className="flex flex-col gap-1">
+              <h2 className="text-2xl font-bold tracking-tight text-ink">Appearance</h2>
+              <p className="text-sm text-ink-muted">Customize how Chatty looks on your device.</p>
+            </div>
 
-        <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
-          {THEMES.map((t) => (
-            <button
-              key={t}
-              className={`
-                group flex flex-col items-center gap-1.5 p-2 rounded-lg transition-colors
-                ${theme === t ? "bg-base-200" : "hover:bg-base-200/50"}
-              `}
-              onClick={() => setTheme(t)}
-            >
-              <div className="relative h-8 w-full rounded-md overflow-hidden" data-theme={t}>
-                <div className="absolute inset-0 grid grid-cols-4 gap-px p-1">
-                  <div className="rounded bg-primary"></div>
-                  <div className="rounded bg-secondary"></div>
-                  <div className="rounded bg-accent"></div>
-                  <div className="rounded bg-neutral"></div>
+            <TiltCard>
+              <div className="bg-surface-2 border border-line rounded-xl p-4 flex items-center justify-between max-w-md shadow-elevation-1">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-surface-3 rounded-lg text-ink">
+                  {isDark ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+                </div>
+                <div>
+                  <h3 className="font-medium text-sm text-ink">Dark Mode</h3>
+                  <p className="text-xs text-ink-muted">Toggle dark theme</p>
                 </div>
               </div>
-              <span className="text-[11px] font-medium truncate w-full text-center">
-                {t.charAt(0).toUpperCase() + t.slice(1)}
-              </span>
-            </button>
-          ))}
-        </div>
+              <button 
+                onClick={toggleTheme}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-surface ${isDark ? 'bg-accent' : 'bg-surface-3 border border-line'}`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isDark ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+            </TiltCard>
+          </section>
 
-        {/* Preview Section */}
-        <h3 className="text-lg font-semibold mb-3">Preview</h3>
-        <div className="rounded-xl border border-base-300 overflow-hidden bg-base-100 shadow-lg">
-          <div className="p-4 bg-base-200">
-            <div className="max-w-lg mx-auto">
-              {/* Mock Chat UI */}
-              <div className="bg-base-100 rounded-xl shadow-sm overflow-hidden">
-                {/* Chat Header */}
-                <div className="px-4 py-3 border-b border-base-300 bg-base-100">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-content font-medium">
+          {/* Preview Section */}
+          <section className="space-y-4">
+            <h3 className="text-2xl font-bold tracking-tight mb-3 text-ink">Preview</h3>
+            <TiltCard>
+              <div className="rounded-2xl border border-line overflow-hidden bg-surface shadow-elevation-2">
+                <div className="p-4 sm:p-8 bg-surface-2 flex items-center justify-center">
+                  <div className="w-full max-w-md bg-surface border border-line rounded-2xl shadow-sm overflow-hidden flex flex-col">
+                  {/* Chat Header */}
+                  <div className="px-4 py-3 border-b border-line bg-surface/70 backdrop-blur-xl shadow-elevation-1 flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-white font-medium text-sm">
                       J
                     </div>
                     <div>
-                      <h3 className="font-medium text-sm">John Doe</h3>
-                      <p className="text-xs text-base-content/70">Online</p>
+                      <h3 className="font-medium text-sm text-ink">John Doe</h3>
+                      <p className="text-xs text-online">Online</p>
                     </div>
                   </div>
-                </div>
 
-                {/* Chat Messages */}
-                <div className="p-4 space-y-4 min-h-[200px] max-h-[200px] overflow-y-auto bg-base-100">
-                  {PREVIEW_MESSAGES.map((message) => (
-                    <div
-                      key={message.id}
-                      className={`flex ${message.isSent ? "justify-end" : "justify-start"}`}
-                    >
+                  {/* Chat Messages */}
+                  <div className="p-4 space-y-4 min-h-[200px] max-h-[200px] overflow-y-auto bg-surface">
+                    {PREVIEW_MESSAGES.map((message) => (
                       <div
-                        className={`
-                          max-w-[80%] rounded-xl p-3 shadow-sm
-                          ${message.isSent ? "bg-primary text-primary-content" : "bg-base-200"}
-                        `}
+                        key={message.id}
+                        className={`flex ${message.isSent ? "justify-end" : "justify-start"}`}
                       >
-                        <p className="text-sm">{message.content}</p>
-                        <p
-                          className={`
-                            text-[10px] mt-1.5
-                            ${message.isSent ? "text-primary-content/70" : "text-base-content/70"}
-                          `}
+                        <div
+                          className={`max-w-[80%] rounded-2xl px-4 py-2 shadow-elevation-1 ${message.isSent ? "bg-gradient-to-br from-accent to-accent-hover text-white rounded-br-md" : "bg-surface-2 text-ink border border-line-soft rounded-bl-md"}`}
                         >
-                          12:00 PM
-                        </p>
+                          <p className="text-sm">{message.content}</p>
+                          <p className={`text-[10px] mt-1 ${message.isSent ? "text-white/70 text-right" : "text-ink-muted"}`}>
+                            12:00 PM
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
 
-                {/* Chat Input */}
-                <div className="p-4 border-t border-base-300 bg-base-100">
-                  <div className="flex gap-2">
+                  {/* Chat Input */}
+                  <div className="p-3 border-t border-line bg-surface flex gap-2 items-center">
                     <input
                       type="text"
-                      className="input input-bordered flex-1 text-sm h-10"
+                      className="flex-1 bg-surface-2 border border-line rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:border-accent placeholder:text-ink-faint shadow-elevation-1 focus:shadow-elevation-2 transition-all focus:ring-2 focus:ring-accent/20"
                       placeholder="Type a message..."
                       value="This is a preview"
                       readOnly
                     />
-                    <button className="btn btn-primary h-10 min-h-0">
+                    <button className="p-2 bg-accent hover:bg-accent-hover text-white rounded-lg flex items-center justify-center shadow-glow-accent transition-all">
                       <Send size={18} />
                     </button>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
+            </TiltCard>
+          </section>
+        </motion.div>
       </div>
     </div>
   );
