@@ -22,9 +22,22 @@ dotenv.config();
 const PORT = process.env.PORT;
 const __dirname = path.resolve();
 
-app.use(express.json());
+app.use(express.json({ limit: "15mb" }));
 app.use(cookieParser());
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        // libsodium-wrappers (E2EE) compiles a WebAssembly module at runtime,
+        // which needs 'wasm-unsafe-eval' — helmet's default script-src blocks it.
+        scriptSrc: ["'self'", "'wasm-unsafe-eval'"],
+        // Profile pictures and message media are hosted on Cloudinary, not same-origin.
+        imgSrc: ["'self'", "data:", "https://res.cloudinary.com"],
+        mediaSrc: ["'self'", "https://res.cloudinary.com"],
+      },
+    },
+  })
+);
 app.use(
   cors({
     origin: process.env.CLIENT_URL || "http://localhost:5173",
