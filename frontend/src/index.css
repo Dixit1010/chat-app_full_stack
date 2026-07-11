@@ -1,3 +1,80 @@
+@import "@fontsource-variable/inter";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --surface: #ffffff;
+  --surface-2: #f4f4f5;
+  --surface-3: #e4e4e7;
+  --line: #e4e4e7;
+  --line-soft: #f4f4f5;
+  --ink: #18181b;
+  --ink-muted: #71717a;
+  --ink-faint: #a1a1aa;
+  --accent: #6366f1;
+  --accent-rgb: 99, 102, 241;
+  --accent-hover: #4f46e5;
+  --accent-soft: #e0e7ff;
+  --online: #10b981;
+}
+
+.dark {
+  --surface: #09090b;
+  --surface-2: #18181b;
+  --surface-3: #27272a;
+  --line: #27272a;
+  --line-soft: #18181b;
+  --ink: #fafafa;
+  --ink-muted: #a1a1aa;
+  --ink-faint: #71717a;
+  --accent: #818cf8;
+  --accent-rgb: 129, 140, 248;
+  --accent-hover: #6366f1;
+  --accent-soft: #312e81;
+  --online: #34d399;
+}
+
+body {
+  background-color: var(--surface);
+  color: var(--ink);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: var(--line);
+  border-radius: 9999px;
+}
+
+/* Ambient background glow: two large soft blurred accent blobs behind a page shell */
+.ambient-glow { position: relative; isolation: isolate; }
+.ambient-glow::before,
+.ambient-glow::after {
+  content: ""; position: absolute; border-radius: 9999px; filter: blur(90px);
+  z-index: -1; pointer-events: none; opacity: 0.5;
+}
+.ambient-glow::before {
+  width: 42rem; height: 42rem; top: -18rem; left: -12rem;
+  background: radial-gradient(circle, rgba(var(--accent-rgb), 0.22), transparent 70%);
+}
+.ambient-glow::after {
+  width: 36rem; height: 36rem; bottom: -16rem; right: -10rem;
+  background: radial-gradient(circle, rgba(var(--accent-rgb), 0.14), transparent 70%);
+}
+.dark .ambient-glow::before { opacity: 0.35; }
+.dark .ambient-glow::after { opacity: 0.3; }
+
