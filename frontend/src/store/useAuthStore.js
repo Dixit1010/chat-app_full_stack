@@ -1,9 +1,11 @@
+
 import { create } from "zustand";
 import { axiosInstance } from "../lib/axios.js";
 import toast from "react-hot-toast";
 import { io } from "socket.io-client";
+import { initE2EE, generateUserKeyPair } from "../lib/e2ee.js";
 
-const BASE_URL = import.meta.env.MODE === "development" ? "http://localhost:5001" : "/";
+const BASE_URL = import.meta.env.MODE === "development" ? "http://localhost:5002" : "/";
 
 export const useAuthStore = create((set, get) => ({
   authUser: null,
@@ -20,6 +22,7 @@ export const useAuthStore = create((set, get) => ({
 
       set({ authUser: res.data });
       get().connectSocket();
+      get().setupE2EE(res.data);
     } catch (error) {
       console.log("Error in checkAuth:", error);
       set({ authUser: null });
@@ -35,6 +38,7 @@ export const useAuthStore = create((set, get) => ({
       set({ authUser: res.data });
       toast.success("Account created successfully");
       get().connectSocket();
+      get().setupE2EE(res.data);
     } catch (error) {
       toast.error(error.response.data.message);
     } finally {
@@ -48,12 +52,43 @@ export const useAuthStore = create((set, get) => ({
       const res = await axiosInstance.post("/auth/login", data);
       set({ authUser: res.data });
       toast.success("Logged in successfully");
-
+      
       get().connectSocket();
+      get().subscribeToPush();
+      get().setupE2EE(res.data);
     } catch (error) {
-      toast.error(error.response.data.message);
+      toast.error(error.response?.data?.message || "Login failed");
     } finally {
       set({ isLoggingIn: false });
+    }
+  },
+
+  subscribeToPush: async () => {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    try {
+      const register = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+      const subscription = await register.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: "BLBzVonKFt1dNGZHZT9i205W1UE066sJGm2LuONQUxLOHsZTbFC7LxAnyGjH_FW8-zrqFHu5r-ldjHJAqs5K8m8",
+      });
+      await axiosInstance.post("/auth/push-subscribe", { subscription });
+    } catch (error) {
+      console.log("Push subscription failed", error);
+    }
+  },
+
+  setupE2EE: async (user) => {
+    try {
+      await initE2EE();
+      let privateKey = localStorage.getItem(`chatty_priv_${user._id}`);
+      
+      if (!privateKey) {
+        const keys = generateUserKeyPair();
+        localStorage.setItem(`chatty_priv_${user._id}`, keys.privateKey);
+        await axiosInstance.put("/auth/public-key", { publicKey: keys.publicKey });
+      }
+    } catch (e) {
+      console.log("Failed to setup E2EE", e);
     }
   },
 
