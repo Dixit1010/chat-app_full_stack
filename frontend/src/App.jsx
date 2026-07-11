@@ -8,33 +8,50 @@ import ProfilePage from "./pages/ProfilePage";
 
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuthStore } from "./store/useAuthStore";
-import { useThemeStore } from "./store/useThemeStore";
+import { useChatStore } from "./store/useChatStore";
+import { useCallStore } from "./store/useCallStore";
+import { useUiThemeStore } from "./store/useUiThemeStore";
 import { useEffect } from "react";
+import IncomingCallModal from "./components/IncomingCallModal";
+import InCallScreen from "./components/InCallScreen";
 
 import { Loader } from "lucide-react";
 import { Toaster } from "react-hot-toast";
 
 const App = () => {
-  const { authUser, checkAuth, isCheckingAuth, onlineUsers } = useAuthStore();
-  const { theme } = useThemeStore();
-
-  console.log({ onlineUsers });
+  const { authUser, checkAuth, isCheckingAuth } = useAuthStore();
+  const { subscribeToMessages, unsubscribeFromMessages } = useChatStore();
+  const { subscribeToCalls, unsubscribeFromCalls } = useCallStore();
+  const { isDark } = useUiThemeStore();
 
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
 
-  console.log({ authUser });
+  useEffect(() => {
+    if (authUser) {
+      subscribeToMessages();
+      subscribeToCalls();
+      return () => {
+        unsubscribeFromMessages();
+        unsubscribeFromCalls();
+      };
+    }
+  }, [authUser, subscribeToMessages, unsubscribeFromMessages, subscribeToCalls, unsubscribeFromCalls]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", isDark);
+  }, [isDark]);
 
   if (isCheckingAuth && !authUser)
     return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader className="size-10 animate-spin" />
+      <div className="flex items-center justify-center h-screen bg-surface">
+        <Loader className="size-10 animate-spin text-accent" />
       </div>
     );
 
   return (
-    <div data-theme={theme}>
+    <div className="bg-surface text-ink min-h-screen">
       <Navbar />
 
       <Routes>
@@ -46,6 +63,8 @@ const App = () => {
       </Routes>
 
       <Toaster />
+      <IncomingCallModal />
+      <InCallScreen />
     </div>
   );
 };
