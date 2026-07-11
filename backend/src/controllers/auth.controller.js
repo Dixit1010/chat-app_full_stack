@@ -2,17 +2,12 @@ import { generateToken } from "../lib/utils.js";
 import User from "../models/user.model.js";
 import bcrypt from "bcryptjs";
 import cloudinary from "../lib/cloudinary.js";
+import { signupSchema, loginSchema, updateProfileSchema } from "../lib/validation.js";
 
-export const signup = async (req, res) => {
-  const { fullName, email, password } = req.body;
+export const signup = async (req, res, next) => {
   try {
-    if (!fullName || !email || !password) {
-      return res.status(400).json({ message: "All fields are required" });
-    }
-
-    if (password.length < 6) {
-      return res.status(400).json({ message: "Password must be at least 6 characters" });
-    }
+    const validatedData = signupSchema.parse(req.body);
+    const { fullName, email, password } = validatedData;
 
     const user = await User.findOne({ email });
 
@@ -42,14 +37,18 @@ export const signup = async (req, res) => {
       res.status(400).json({ message: "Invalid user data" });
     }
   } catch (error) {
-    console.log("Error in signup controller", error.message);
-    res.status(500).json({ message: "Internal Server Error" });
+    if (error.name === "ZodError") {
+      return res.status(400).json({ message: error.issues[0].message });
+    }
+    next(error);
   }
 };
 
-export const login = async (req, res) => {
-  const { email, password } = req.body;
+export const login = async (req, res, next) => {
   try {
+    const validatedData = loginSchema.parse(req.body);
+    const { email, password } = validatedData;
+    
     const user = await User.findOne({ email });
 
     if (!user) {
@@ -70,29 +69,27 @@ export const login = async (req, res) => {
       profilePic: user.profilePic,
     });
   } catch (error) {
-    console.log("Error in login controller", error.message);
-    res.status(500).json({ message: "Internal Server Error" });
+    if (error.name === "ZodError") {
+      return res.status(400).json({ message: error.issues[0].message });
+    }
+    next(error);
   }
 };
 
-export const logout = (req, res) => {
+export const logout = (req, res, next) => {
   try {
     res.cookie("jwt", "", { maxAge: 0 });
     res.status(200).json({ message: "Logged out successfully" });
   } catch (error) {
-    console.log("Error in logout controller", error.message);
-    res.status(500).json({ message: "Internal Server Error" });
+    next(error);
   }
 };
 
-export const updateProfile = async (req, res) => {
+export const updateProfile = async (req, res, next) => {
   try {
-    const { profilePic } = req.body;
+    const validatedData = updateProfileSchema.parse(req.body);
+    const { profilePic } = validatedData;
     const userId = req.user._id;
-
-    if (!profilePic) {
-      return res.status(400).json({ message: "Profile pic is required" });
-    }
 
     const uploadResponse = await cloudinary.uploader.upload(profilePic);
     const updatedUser = await User.findByIdAndUpdate(
@@ -103,16 +100,45 @@ export const updateProfile = async (req, res) => {
 
     res.status(200).json(updatedUser);
   } catch (error) {
-    console.log("error in update profile:", error);
-    res.status(500).json({ message: "Internal server error" });
+    if (error.name === "ZodError") {
+      return res.status(400).json({ message: error.issues[0].message });
+    }
+    next(error);
   }
 };
 
-export const checkAuth = (req, res) => {
+export const checkAuth = (req, res, next) => {
   try {
     res.status(200).json(req.user);
   } catch (error) {
-    console.log("Error in checkAuth controller", error.message);
+    next(error);
+  }
+};
+
+export const subscribeToPush = async (req, res) => {
+  try {
+    const subscription = req.body;
+    if (!subscription?.endpoint) {
+      return res.status(400).json({ message: "Invalid push subscription" });
+    }
+    req.user.pushSubscription = subscription;
+    await req.user.save();
+    res.status(200).json({ message: "Subscribed to push notifications" });
+  } catch (error) {
+    console.log("Error in subscribeToPush controller", error.message);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
+export const updatePublicKey = async (req, res) => {
+  try {
+    const { publicKey } = req.body;
+    req.user.publicKey = publicKey;
+    await req.user.save();
+    res.status(200).json({ message: "Public key updated successfully" });
+  } catch (error) {
+    console.log("Error in updatePublicKey controller", error.message);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
