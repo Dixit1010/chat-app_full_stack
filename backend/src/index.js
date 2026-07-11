@@ -2,6 +2,8 @@ import express from "express";
 import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 
 import path from "path";
 
@@ -9,7 +11,11 @@ import { connectDB } from "./lib/db.js";
 
 import authRoutes from "./routes/auth.route.js";
 import messageRoutes from "./routes/message.route.js";
+import conversationRoutes from "./routes/conversation.route.js";
+import callRoutes from "./routes/call.route.js";
+import aiRoutes from "./routes/ai.route.js";
 import { app, server } from "./lib/socket.js";
+import { errorHandler } from "./middleware/error.middleware.js";
 
 dotenv.config();
 
@@ -18,15 +24,27 @@ const __dirname = path.resolve();
 
 app.use(express.json());
 app.use(cookieParser());
+app.use(helmet());
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: process.env.CLIENT_URL || "http://localhost:5173",
     credentials: true,
   })
 );
 
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes)
+  message: "Too many requests from this IP, please try again after 15 minutes",
+});
+
+app.use("/api/auth/login", authLimiter);
+app.use("/api/auth/signup", authLimiter);
 app.use("/api/auth", authRoutes);
 app.use("/api/messages", messageRoutes);
+app.use("/api/conversations", conversationRoutes);
+app.use("/api/calls", callRoutes);
+app.use("/api/ai", aiRoutes);
 
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "../frontend/dist")));
@@ -35,6 +53,8 @@ if (process.env.NODE_ENV === "production") {
     res.sendFile(path.join(__dirname, "../frontend", "dist", "index.html"));
   });
 }
+
+app.use(errorHandler);
 
 server.listen(PORT, () => {
   console.log("server is running on PORT:" + PORT);
