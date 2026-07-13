@@ -13,6 +13,34 @@ export const getConversations = async (req, res, next) => {
   }
 };
 
+export const startDirectMessage = async (req, res, next) => {
+  try {
+    const myId = req.user._id;
+    const { userId } = req.params;
+
+    if (userId === myId.toString()) {
+      return res.status(400).json({ message: "Cannot start a conversation with yourself" });
+    }
+
+    let conversation = await Conversation.findOne({
+      isGroup: false,
+      participants: { $all: [myId, userId], $size: 2 },
+    }).populate("participants", "-password");
+
+    if (!conversation) {
+      const created = await Conversation.create({
+        participants: [myId, userId],
+        isGroup: false,
+      });
+      conversation = await Conversation.findById(created._id).populate("participants", "-password");
+    }
+
+    res.status(200).json(conversation);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const createGroup = async (req, res, next) => {
   try {
     const { groupName, participants } = req.body;

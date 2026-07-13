@@ -104,8 +104,15 @@ export const useChatStore = create((set, get) => ({
     try {
       let currentSymKey = activeSymmetricKey;
       let newEncryptedKeys = undefined;
-      
-      if (!currentSymKey && messageData.text) {
+
+      const hasExistingKey = selectedConversation.encryptedKeys &&
+        Object.keys(selectedConversation.encryptedKeys).length > 0;
+
+      if (!currentSymKey && messageData.text && !hasExistingKey) {
+        // Only mint a fresh conversation key when one has never existed for
+        // this conversation. Regenerating just because *our* local key cache
+        // is empty would overwrite every participant's encrypted entry and
+        // permanently orphan any messages already encrypted under the old key.
         currentSymKey = generateConversationKey();
         newEncryptedKeys = {};
 
@@ -121,6 +128,11 @@ export const useChatStore = create((set, get) => ({
       if (currentSymKey && payload.text) {
         payload.text = encryptMessageText(payload.text, currentSymKey);
         payload.isEncrypted = true;
+      } else if (!currentSymKey && hasExistingKey && payload.text) {
+        // A key already exists for this conversation but we couldn't decrypt
+        // our own copy of it (stale/rotated keypair). Send unencrypted rather
+        // than silently destroying everyone else's message history.
+        toast.error("Encryption key out of sync for this chat — message sent unencrypted", { icon: "⚠️" });
       }
       if (newEncryptedKeys) {
         payload.encryptedKeys = newEncryptedKeys;
@@ -168,6 +180,21 @@ export const useChatStore = create((set, get) => ({
       return res.data;
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to create group");
+      throw error;
+    }
+  },
+
+  startDirectMessage: async (userId) => {
+    try {
+      const res = await axiosInstance.post(`/conversations/dm/${userId}`);
+      set((state) => ({
+        conversations: state.conversations.some(c => c._id === res.data._id)
+          ? state.conversations
+          : [res.data, ...state.conversations],
+      }));
+      return res.data;
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to start conversation");
       throw error;
     }
   },
