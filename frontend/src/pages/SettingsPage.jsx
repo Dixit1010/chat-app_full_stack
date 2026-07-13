@@ -67,7 +67,7 @@ const SettingsPage = () => {
                   </div>
 
                   {/* Chat Messages */}
-                  <div className="p-4 space-y-4 min-h-[200px] max-h-[200px] overflow-y-auto bg-surface">
+                  <div className="p-4 space-y-4 min-h-[200px] max-h-[200px] overflow-y-auto chat-wallpaper">
                     {PREVIEW_MESSAGES.map((message) => (
                       <div
                         key={message.id}

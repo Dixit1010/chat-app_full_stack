@@ -1,4 +1,13 @@
 import Conversation from "../models/conversation.model.js";
+import cloudinary from "../lib/cloudinary.js";
+import { getReceiverSocketId, io } from "../lib/socket.js";
+
+const broadcastGroupUpdate = (recipientIds, payload) => {
+  recipientIds.forEach((pId) => {
+    const socketId = getReceiverSocketId(pId.toString());
+    if (socketId) io.to(socketId).emit("groupUpdated", payload);
+  });
+};
 
 export const getConversations = async (req, res, next) => {
   try {
@@ -74,7 +83,7 @@ export const createGroup = async (req, res, next) => {
 export const updateGroup = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { groupName, participants, action } = req.body;
+    const { groupName, participants, groupAvatar, action } = req.body;
     const userId = req.user._id;
 
     const group = await Conversation.findById(id);
@@ -87,22 +96,47 @@ export const updateGroup = async (req, res, next) => {
       return res.status(400).json({ message: "Not a group conversation" });
     }
 
-    if (!group.admins.includes(userId)) {
+    // Leaving the group yourself is always allowed; every other action
+    // (rename, icon, adding/removing other members) is admin-only.
+    const isSelfLeave = action === "remove" && participants?.length === 1 && participants[0] === userId.toString();
+    if (!isSelfLeave && !group.admins.some(a => a.toString() === userId.toString())) {
       return res.status(403).json({ message: "Only admins can modify the group" });
     }
 
+    // Keep the pre-change roster so a removed/leaving member still gets
+    // notified in real time, even though they're no longer a participant
+    // by the time we broadcast.
+    const previousParticipantIds = group.participants.map(p => p.toString());
+
     if (action === "rename" && groupName) {
       group.groupName = groupName;
+    } else if (action === "icon" && groupAvatar) {
+      const uploadResponse = await cloudinary.uploader.upload(groupAvatar, { resource_type: "auto" });
+      group.groupAvatar = uploadResponse.secure_url;
     } else if (action === "add" && participants) {
-      const newParticipants = participants.filter(p => !group.participants.includes(p));
+      const newParticipants = participants.filter(p => !group.participants.some(existing => existing.toString() === p));
       group.participants.push(...newParticipants);
     } else if (action === "remove" && participants) {
       group.participants = group.participants.filter(p => !participants.includes(p.toString()));
+      group.admins = group.admins.filter(a => !participants.includes(a.toString()));
+    }
+
+    if (group.participants.length === 0) {
+      await Conversation.findByIdAndDelete(id);
+      broadcastGroupUpdate(previousParticipantIds, { deleted: true, _id: id });
+      return res.status(200).json({ deleted: true, _id: id });
+    }
+
+    // If every remaining admin just left/got removed, promote whoever's left.
+    if (group.admins.length === 0) {
+      group.admins = [group.participants[0]];
     }
 
     await group.save();
     const updatedGroup = await Conversation.findById(id).populate("participants", "-password");
 
+    const recipientIds = [...new Set([...previousParticipantIds, ...updatedGroup.participants.map(p => p._id.toString())])];
+    broadcastGroupUpdate(recipientIds, updatedGroup);
     res.status(200).json(updatedGroup);
   } catch (error) {
     next(error);

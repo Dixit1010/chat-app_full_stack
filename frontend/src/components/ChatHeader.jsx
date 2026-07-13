@@ -5,7 +5,9 @@ import { useChatStore } from "../store/useChatStore";
 import { useCallStore } from "../store/useCallStore";
 import { useAiStore } from "../store/useAiStore";
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import TiltCard from "./TiltCard";
+import GroupInfoModal from "./GroupInfoModal";
 
 const TypingDots = () => (
   <span className="inline-flex items-center gap-0.5">
@@ -28,6 +30,7 @@ const ChatHeader = () => {
   
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isGroupInfoOpen, setIsGroupInfoOpen] = useState(false);
 
   if (!selectedConversation) return null;
 
@@ -73,7 +76,11 @@ const ChatHeader = () => {
 
   return (
     <div className="px-4 sm:px-5 py-3 border-b border-line bg-surface/70 backdrop-blur-xl shadow-elevation-1 flex items-center justify-between shrink-0">
-      <div className="flex items-center gap-3 min-w-0">
+      <button
+        type="button"
+        onClick={() => selectedConversation.isGroup && setIsGroupInfoOpen(true)}
+        className={`flex items-center gap-3 min-w-0 ${selectedConversation.isGroup ? "cursor-pointer" : "cursor-default"}`}
+      >
         <div className="relative shrink-0">
           <img
             src={avatar}
@@ -85,7 +92,7 @@ const ChatHeader = () => {
           )}
         </div>
 
-        <div className="min-w-0">
+        <div className="min-w-0 text-left">
           <h3 className="font-semibold text-sm text-ink truncate">{name}</h3>
           <div className="text-xs text-ink-faint h-4 flex items-center gap-1.5">
             {isTyping ? (
@@ -98,7 +105,7 @@ const ChatHeader = () => {
             )}
           </div>
         </div>
-      </div>
+      </button>
 
       <div className="flex items-center gap-2">
         <AnimatePresence>
@@ -162,7 +169,7 @@ const ChatHeader = () => {
         </button>
       </div>
 
-      {(summary || isSummarizing) && (
+      {(summary || isSummarizing) && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <TiltCard className="max-w-sm w-full">
             <div className="bg-surface rounded-xl shadow-elevation-3 border border-line-soft p-6">
@@ -173,7 +180,24 @@ const ChatHeader = () => {
               </div>
             </div>
           </TiltCard>
-        </div>
+        </div>,
+        document.body
+      )}
+
+      {createPortal(
+        <AnimatePresence>
+          {isGroupInfoOpen && selectedConversation.isGroup && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+            >
+              <GroupInfoModal conversation={selectedConversation} onClose={() => setIsGroupInfoOpen(false)} />
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
       )}
     </div>
   );

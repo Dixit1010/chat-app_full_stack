@@ -199,6 +199,27 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
+  updateGroup: async (conversationId, payload) => {
+    try {
+      const res = await axiosInstance.patch(`/conversations/${conversationId}`, payload);
+      if (res.data.deleted) {
+        set((state) => ({
+          conversations: state.conversations.filter(c => c._id !== conversationId),
+          selectedConversation: state.selectedConversation?._id === conversationId ? null : state.selectedConversation,
+        }));
+        return res.data;
+      }
+      set((state) => ({
+        conversations: state.conversations.map(c => c._id === res.data._id ? res.data : c),
+        selectedConversation: state.selectedConversation?._id === res.data._id ? res.data : state.selectedConversation,
+      }));
+      return res.data;
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to update group");
+      throw error;
+    }
+  },
+
   markAsSeen: async (conversationId) => {
     try {
       await axiosInstance.patch(`/messages/seen/${conversationId}`);
@@ -318,9 +339,25 @@ export const useChatStore = create((set, get) => ({
 
     socket.on("messageDeleted", ({ messageId, deletedAt }) => {
       set((state) => ({
-        messages: state.messages.map(msg => 
+        messages: state.messages.map(msg =>
           msg._id === messageId ? { ...msg, deletedAt } : msg
         )
+      }));
+    });
+
+    socket.on("groupUpdated", (updatedGroup) => {
+      if (updatedGroup.deleted) {
+        set((state) => ({
+          conversations: state.conversations.filter(c => c._id !== updatedGroup._id),
+          selectedConversation: state.selectedConversation?._id === updatedGroup._id ? null : state.selectedConversation,
+        }));
+        return;
+      }
+      set((state) => ({
+        conversations: state.conversations.some(c => c._id === updatedGroup._id)
+          ? state.conversations.map(c => c._id === updatedGroup._id ? updatedGroup : c)
+          : [updatedGroup, ...state.conversations],
+        selectedConversation: state.selectedConversation?._id === updatedGroup._id ? updatedGroup : state.selectedConversation,
       }));
     });
   },
@@ -336,6 +373,7 @@ export const useChatStore = create((set, get) => ({
       socket.off("messageReaction");
       socket.off("messageEdited");
       socket.off("messageDeleted");
+      socket.off("groupUpdated");
     }
   },
 

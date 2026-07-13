@@ -106,7 +106,7 @@ const ChatContainer = () => {
       <ChatHeader />
 
       <div
-        className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-4 space-y-1 scrollbar-thin bg-radial-fade bg-no-repeat bg-top"
+        className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-4 space-y-1 scrollbar-thin chat-wallpaper"
         ref={scrollContainerRef}
         onScroll={handleScroll}
       >
