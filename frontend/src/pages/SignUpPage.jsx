@@ -11,6 +11,7 @@ const SignUpPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     fullName: "",
+    username: "",
     email: "",
     password: "",
   });
@@ -19,6 +20,9 @@ const SignUpPage = () => {
 
   const validateForm = () => {
     if (!formData.fullName.trim()) return toast.error("Full name is required");
+    if (!formData.username.trim()) return toast.error("Username is required");
+    if (formData.username.length < 3 || formData.username.length > 20) return toast.error("Username must be between 3 and 20 characters");
+    if (!/^[a-z0-9_.]+$/.test(formData.username)) return toast.error("Username can only contain lowercase letters, numbers, underscores, and periods");
     if (!formData.email.trim()) return toast.error("Email is required");
     if (!/\S+@\S+\.\S+/.test(formData.email)) return toast.error("Invalid email format");
     if (!formData.password) return toast.error("Password is required");
@@ -52,8 +56,8 @@ const SignUpPage = () => {
               >
                 <MessageSquare className="size-6 text-accent" />
               </div>
-              <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mt-2">Create Account</h1>
-              <p className="text-ink-muted">Get started with your free account</p>
+              <h1 className="text-4xl sm:text-5xl font-bold tracking-tight mt-2">Create Account</h1>
+              <p className="text-lg text-ink-muted mt-1">Get started with your free account</p>
             </div>
           </div>
 
@@ -62,7 +66,7 @@ const SignUpPage = () => {
               <label className="text-sm font-medium text-ink-muted">Full Name</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <User className="size-5 text-ink-faint" />
+                  <User className="size-5 text-ink-muted" />
                 </div>
                 <input
                   type="text"
@@ -75,10 +79,26 @@ const SignUpPage = () => {
             </div>
 
             <div className="space-y-1.5">
+              <label className="text-sm font-medium text-ink-muted">Username</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <span className="text-ink-muted font-medium text-lg pb-0.5">@</span>
+                </div>
+                <input
+                  type="text"
+                  className={`w-full pl-9 pr-4 py-2 bg-surface-2 border border-line rounded-lg focus:outline-none focus:border-accent text-ink placeholder:text-ink-faint focus:ring-2 focus:ring-accent/20 transition-all shadow-elevation-1 focus:shadow-elevation-2`}
+                  placeholder="username"
+                  value={formData.username}
+                  onChange={(e) => setFormData({ ...formData, username: e.target.value.toLowerCase().replace(/\s/g, "") })}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
               <label className="text-sm font-medium text-ink-muted">Email</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="size-5 text-ink-faint" />
+                  <Mail className="size-5 text-ink-muted" />
                 </div>
                 <input
                   type="email"
@@ -94,7 +114,7 @@ const SignUpPage = () => {
               <label className="text-sm font-medium text-ink-muted">Password</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="size-5 text-ink-faint" />
+                  <Lock className="size-5 text-ink-muted" />
                 </div>
                 <input
                   type={showPassword ? "text" : "password"}

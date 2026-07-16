@@ -32,8 +32,8 @@ const LoginPage = () => {
               >
                 <MessageSquare className="size-6 text-accent" />
               </div>
-              <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mt-2">Welcome Back</h1>
-              <p className="text-ink-muted">Sign in to your account</p>
+              <h1 className="text-4xl sm:text-5xl font-bold tracking-tight mt-2">Welcome Back</h1>
+              <p className="text-lg text-ink-muted mt-1">Sign in to your account</p>
             </div>
           </div>
 
@@ -43,7 +43,7 @@ const LoginPage = () => {
               <label className="text-sm font-medium text-ink-muted">Email</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-ink-faint" />
+                  <Mail className="h-5 w-5 text-ink-muted" />
                 </div>
                 <input
                   type="email"
@@ -59,7 +59,7 @@ const LoginPage = () => {
               <label className="text-sm font-medium text-ink-muted">Password</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-ink-faint" />
+                  <Lock className="h-5 w-5 text-ink-muted" />
                 </div>
                 <input
                   type={showPassword ? "text" : "password"}
