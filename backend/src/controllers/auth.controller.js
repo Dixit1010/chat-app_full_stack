@@ -7,11 +7,13 @@ import { signupSchema, loginSchema, updateProfileSchema } from "../lib/validatio
 export const signup = async (req, res, next) => {
   try {
     const validatedData = signupSchema.parse(req.body);
-    const { fullName, email, password } = validatedData;
+    const { fullName, email, password, username } = validatedData;
 
-    const user = await User.findOne({ email });
+    const existingEmail = await User.findOne({ email });
+    if (existingEmail) return res.status(400).json({ message: "Email already exists" });
 
-    if (user) return res.status(400).json({ message: "Email already exists" });
+    const existingUsername = await User.findOne({ username: username.toLowerCase() });
+    if (existingUsername) return res.status(400).json({ message: "Username already taken" });
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
@@ -19,6 +21,7 @@ export const signup = async (req, res, next) => {
     const newUser = new User({
       fullName,
       email,
+      username,
       password: hashedPassword,
     });
 
@@ -37,6 +40,14 @@ export const signup = async (req, res, next) => {
       res.status(400).json({ message: "Invalid user data" });
     }
   } catch (error) {
+    if (error.code === 11000) {
+      if (error.keyPattern?.username) {
+        return res.status(400).json({ message: "Username already taken" });
+      }
+      if (error.keyPattern?.email) {
+        return res.status(400).json({ message: "Email already exists" });
+      }
+    }
     if (error.name === "ZodError") {
       return res.status(400).json({ message: error.issues[0].message });
     }
@@ -88,18 +99,32 @@ export const logout = (req, res, next) => {
 export const updateProfile = async (req, res, next) => {
   try {
     const validatedData = updateProfileSchema.parse(req.body);
-    const { profilePic } = validatedData;
+    const { profilePic, username, about } = validatedData;
     const userId = req.user._id;
 
-    const uploadResponse = await cloudinary.uploader.upload(profilePic);
+    const updates = {};
+    if (profilePic) {
+      const uploadResponse = await cloudinary.uploader.upload(profilePic);
+      updates.profilePic = uploadResponse.secure_url;
+    }
+    if (username) updates.username = username;
+    if (about !== undefined) updates.about = about;
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ message: "No valid fields provided for update" });
+    }
+
     const updatedUser = await User.findByIdAndUpdate(
       userId,
-      { profilePic: uploadResponse.secure_url },
+      updates,
       { new: true }
     );
 
     res.status(200).json(updatedUser);
   } catch (error) {
+    if (error.code === 11000 && error.keyPattern?.username) {
+      return res.status(400).json({ message: "Username already taken" });
+    }
     if (error.name === "ZodError") {
       return res.status(400).json({ message: error.issues[0].message });
     }
@@ -117,7 +142,7 @@ export const checkAuth = (req, res, next) => {
 
 export const subscribeToPush = async (req, res) => {
   try {
-    const subscription = req.body;
+    const { subscription } = req.body;
     if (!subscription?.endpoint) {
       return res.status(400).json({ message: "Invalid push subscription" });
     }

@@ -7,6 +7,21 @@ const userSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
+    username: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true,
+      minlength: 3,
+      maxlength: 20,
+      match: /^[a-z0-9_.]+$/,
+    },
+    about: {
+      type: String,
+      default: "Hey there! I am using Chatty",
+      maxlength: 150,
+    },
     fullName: {
       type: String,
       required: true,
@@ -27,6 +42,18 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    blockedUsers: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+    pinnedConversations: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Conversation",
+      },
+    ],
   },
   { timestamps: true }
 );
