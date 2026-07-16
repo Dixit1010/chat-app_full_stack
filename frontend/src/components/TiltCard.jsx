@@ -1,8 +1,10 @@
 import { useRef } from "react";
 import { motion, useMotionValue, useSpring, useTransform, useMotionTemplate } from "framer-motion";
+import { useMotionPreferences } from "../lib/motion";
 
 const TiltCard = ({ children, className = "" }) => {
   const ref = useRef(null);
+  const { shouldReduceMotion } = useMotionPreferences();
 
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -21,7 +23,7 @@ const TiltCard = ({ children, className = "" }) => {
   const background = useMotionTemplate`radial-gradient(circle at ${mouseXPos}px ${mouseYPos}px, rgba(var(--accent-rgb), 0.10) 0%, transparent 80%)`;
 
   const handleMouseMove = (e) => {
-    if (!ref.current) return;
+    if (!ref.current || shouldReduceMotion) return;
     const rect = ref.current.getBoundingClientRect();
     
     const width = rect.width;
@@ -54,7 +56,7 @@ const TiltCard = ({ children, className = "" }) => {
       onMouseLeave={handleMouseLeave}
     >
       <motion.div
-        style={{
+        style={shouldReduceMotion ? {} : {
           rotateX,
           rotateY,
           transformStyle: "preserve-3d",
@@ -62,13 +64,15 @@ const TiltCard = ({ children, className = "" }) => {
         className="w-full h-full relative"
       >
         {children}
-        <motion.div
-          className="pointer-events-none absolute inset-0 z-50 rounded-[inherit]"
-          style={{
-            opacity: glareOpacity,
-            background,
-          }}
-        />
+        {!shouldReduceMotion && (
+          <motion.div
+            className="pointer-events-none absolute inset-0 z-50 rounded-[inherit]"
+            style={{
+              opacity: glareOpacity,
+              background,
+            }}
+          />
+        )}
       </motion.div>
     </div>
   );

@@ -7,6 +7,7 @@ const AuthSceneContent = () => {
   
   const [reducedMotion, setReducedMotion] = useState(false);
   const [accentColor, setAccentColor] = useState("#6366f1");
+  const [sceneOpacity, setSceneOpacity] = useState(0.3);
 
   const pointer = useRef({ x: 0, y: 0 });
 
@@ -21,13 +22,14 @@ const AuthSceneContent = () => {
   }, []);
 
   useEffect(() => {
-    const updateColor = () => {
+    const updateTheme = () => {
       const isDark = document.documentElement.classList.contains('dark');
       setAccentColor(isDark ? "#818cf8" : "#6366f1");
+      setSceneOpacity(isDark ? 0.3 : 0.6);
     };
-    updateColor();
+    updateTheme();
     
-    const observer = new MutationObserver(updateColor);
+    const observer = new MutationObserver(updateTheme);
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
     
     return () => observer.disconnect();
@@ -65,7 +67,7 @@ const AuthSceneContent = () => {
         roughness={1}
         metalness={0}
         transparent
-        opacity={0.3}
+        opacity={sceneOpacity}
         depthWrite={false}
       />
     </Sphere>
