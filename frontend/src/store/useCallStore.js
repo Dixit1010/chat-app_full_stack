@@ -10,6 +10,31 @@ const ICE_SERVERS = {
   ]
 };
 
+// ICE candidates can arrive (and be added) faster than the async SDP
+// exchange completes — addIceCandidate() throws if the remote description
+// isn't set yet. Buffer here and flush once it is, instead of dropping them.
+let pendingIceCandidates = [];
+let callTimeoutId = null;
+
+const clearCallTimeout = () => {
+  if (callTimeoutId) {
+    clearTimeout(callTimeoutId);
+    callTimeoutId = null;
+  }
+};
+
+const flushPendingIceCandidates = async (pc) => {
+  const queued = pendingIceCandidates;
+  pendingIceCandidates = [];
+  for (const candidate of queued) {
+    try {
+      await pc.addIceCandidate(new RTCIceCandidate(candidate));
+    } catch (e) {
+      // malformed/duplicate candidate — safe to ignore
+    }
+  }
+};
+
 export const useCallStore = create((set, get) => ({
   peerConnection: null,
   localStream: null,
@@ -21,6 +46,7 @@ export const useCallStore = create((set, get) => ({
 
   initCall: async (peerId, isVideo = true) => {
     try {
+      pendingIceCandidates = [];
       const stream = await navigator.mediaDevices.getUserMedia({ video: isVideo, audio: true });
       set({ localStream: stream, activeCall: { peerId, isVideo }, callStatus: "calling" });
 
@@ -46,6 +72,14 @@ export const useCallStore = create((set, get) => ({
       const socket = useAuthStore.getState().socket;
       socket.emit("call-offer", { receiverId: peerId, offer, isVideo });
 
+      clearCallTimeout();
+      callTimeoutId = setTimeout(() => {
+        if (get().callStatus === "calling") {
+          toast.error("No answer");
+          get().endCall();
+        }
+      }, 45000);
+
     } catch (e) {
       toast.error("Could not access camera/microphone");
       get().endCall();
@@ -57,6 +91,7 @@ export const useCallStore = create((set, get) => ({
     if (!incomingCall) return;
 
     try {
+      pendingIceCandidates = [];
       const stream = await navigator.mediaDevices.getUserMedia({ video: incomingCall.isVideo, audio: true });
       set({ localStream: stream, activeCall: { peerId: incomingCall.callerId, isVideo: incomingCall.isVideo }, callStatus: "connected", callStartTime: Date.now() });
 
@@ -77,6 +112,7 @@ export const useCallStore = create((set, get) => ({
       };
 
       await pc.setRemoteDescription(new RTCSessionDescription(incomingCall.offer));
+      await flushPendingIceCandidates(pc);
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
 
@@ -119,6 +155,8 @@ export const useCallStore = create((set, get) => ({
       }
     }
 
+    pendingIceCandidates = [];
+    clearCallTimeout();
     set({ peerConnection: null, localStream: null, remoteStream: null, activeCall: null, callStatus: "idle", incomingCall: null, callStartTime: null });
   },
 
@@ -136,18 +174,31 @@ export const useCallStore = create((set, get) => ({
 
     socket.on("call-answer", async ({ senderId, answer }) => {
       const pc = get().peerConnection;
-      if (pc) {
+      if (!pc) return;
+      try {
         await pc.setRemoteDescription(new RTCSessionDescription(answer));
+        await flushPendingIceCandidates(pc);
+        clearCallTimeout();
         set({ callStatus: "connected", callStartTime: Date.now() });
+      } catch (e) {
+        // stale/duplicate answer for an already-ended call — nothing to do
       }
     });
 
     socket.on("ice-candidate", async ({ senderId, candidate }) => {
       const pc = get().peerConnection;
-      if (pc) {
-        try {
-          await pc.addIceCandidate(new RTCIceCandidate(candidate));
-        } catch(e) {}
+      if (!pc) return;
+      // The remote description may not be set yet (offer/answer is still in
+      // flight) — applying now would throw and silently drop the candidate,
+      // which is what made calls connect unreliably. Queue it instead.
+      if (!pc.remoteDescription) {
+        pendingIceCandidates.push(candidate);
+        return;
+      }
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (e) {
+        // malformed/duplicate candidate — safe to ignore
       }
     });
 
