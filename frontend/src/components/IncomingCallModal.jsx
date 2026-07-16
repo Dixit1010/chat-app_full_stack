@@ -1,8 +1,20 @@
 import { useCallStore } from "../store/useCallStore";
+import { useSoundStore } from "../store/useSoundStore";
 import { Phone, PhoneOff, Video } from "lucide-react";
+import { useEffect } from "react";
 
 const IncomingCallModal = () => {
   const { incomingCall, acceptCall, declineCall } = useCallStore();
+  const { playRing } = useSoundStore();
+
+  useEffect(() => {
+    if (!incomingCall) return;
+    playRing();
+    const interval = setInterval(() => {
+      playRing();
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [incomingCall, playRing]);
 
   if (!incomingCall) return null;
 

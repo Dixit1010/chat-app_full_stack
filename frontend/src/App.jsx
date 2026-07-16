@@ -29,6 +29,14 @@ const App = () => {
   }, [checkAuth]);
 
   useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(err => {
+        console.log("Service Worker registration failed:", err);
+      });
+    }
+  }, []);
+
+  useEffect(() => {
     if (authUser) {
       subscribeToMessages();
       subscribeToCalls();
