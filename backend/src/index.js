@@ -14,6 +14,8 @@ import messageRoutes from "./routes/message.route.js";
 import conversationRoutes from "./routes/conversation.route.js";
 import callRoutes from "./routes/call.route.js";
 import aiRoutes from "./routes/ai.route.js";
+import userRoutes from "./routes/user.route.js";
+import reportRoutes from "./routes/report.route.js";
 import { app, server } from "./lib/socket.js";
 import { errorHandler } from "./middleware/error.middleware.js";
 
@@ -54,10 +56,12 @@ const authLimiter = rateLimit({
 app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/signup", authLimiter);
 app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/conversations", conversationRoutes);
 app.use("/api/calls", callRoutes);
 app.use("/api/ai", aiRoutes);
+app.use("/api/reports", reportRoutes);
 
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "../frontend/dist")));
