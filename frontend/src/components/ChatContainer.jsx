@@ -237,6 +237,13 @@ const ChatContainer = () => {
                 }`}
                 onMouseEnter={() => !isSelectMode && setHoveredMessage(message._id)}
                 onMouseLeave={() => setHoveredMessage(null)}
+                onClick={(e) => {
+                  // This row spans the full width for alignment purposes, so
+                  // the "empty" space beside a bubble is this row's own
+                  // background, not the outer scroll container's — tapping
+                  // it should still dismiss a tap-opened menu on another row.
+                  if (e.target === e.currentTarget) setHoveredMessage(null);
+                }}
               >
               {isSelectMode && (
                 <div onClick={() => toggleSelection(message._id)} className={`size-5 rounded flex items-center justify-center shrink-0 cursor-pointer border transition-colors mb-2 ${selectedMessageIds.has(message._id) ? "bg-accent border-accent text-white" : "border-line"}`}>
