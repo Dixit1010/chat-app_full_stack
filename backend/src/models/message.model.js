@@ -15,6 +15,11 @@ const messageSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Conversation",
     },
+    replyTo: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Message",
+      default: null,
+    },
     text: {
       type: String,
     },
@@ -49,6 +54,18 @@ const messageSchema = new mongoose.Schema(
     deletedAt: {
       type: Date,
     },
+    forwardedFrom: {
+      type: Boolean,
+      default: false,
+    },
+    pinned: {
+      type: Boolean,
+      default: false,
+    },
+    pinnedAt: {
+      type: Date,
+      default: null,
+    },
     isEncrypted: {
       type: Boolean,
       default: false,
@@ -58,7 +75,6 @@ const messageSchema = new mongoose.Schema(
 );
 
 messageSchema.index({ conversationId: 1, createdAt: -1 });
-messageSchema.index({ text: "text" });
 
 const Message = mongoose.model("Message", messageSchema);
 

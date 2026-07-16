@@ -20,6 +20,19 @@ export const getUsersForSidebar = async (req, res, next) => {
   }
 };
 
+export const findUserByUsername = async (req, res, next) => {
+  try {
+    const { username } = req.params;
+    const user = await User.findOne({ username: username.toLowerCase() }).select("fullName username profilePic about");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    res.status(200).json(user);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getMessages = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -64,7 +77,7 @@ export const getMessages = async (req, res, next) => {
 export const sendMessage = async (req, res, next) => {
   try {
     const validatedData = sendMessageSchema.parse(req.body);
-    const { text, image, mediaType, isEncrypted, encryptedKeys } = validatedData;
+    const { text, image, mediaType, isEncrypted, encryptedKeys, replyTo, forwardedFrom } = validatedData;
     const { id } = req.params;
     const senderId = req.user._id;
 
@@ -85,6 +98,19 @@ export const sendMessage = async (req, res, next) => {
           participants: [senderId, id],
           isGroup: false,
         });
+      }
+    }
+
+    if (!conversation.isGroup) {
+      const otherUserId = conversation.participants.find(p => p.toString() !== senderId.toString());
+      if (otherUserId) {
+        if (req.user.blockedUsers && req.user.blockedUsers.includes(otherUserId.toString())) {
+          return res.status(403).json({ code: "BLOCKED_BY_ME", message: "You blocked this user." });
+        }
+        const recipient = await User.findById(otherUserId).select("blockedUsers");
+        if (recipient && recipient.blockedUsers && recipient.blockedUsers.includes(senderId.toString())) {
+          return res.status(403).json({ code: "BLOCKED_ME", message: "This user has blocked you." });
+        }
       }
     }
 
@@ -130,6 +156,8 @@ export const sendMessage = async (req, res, next) => {
       mediaType,
       status: messageStatus,
       isEncrypted,
+      replyTo: replyTo || null,
+      forwardedFrom: forwardedFrom || false,
     });
 
     await newMessage.save();
@@ -305,19 +333,82 @@ export const deleteMessage = async (req, res, next) => {
   }
 };
 
-export const searchMessages = async (req, res, next) => {
+export const bulkDeleteMessages = async (req, res, next) => {
   try {
-    const { conversationId } = req.params;
-    const { q } = req.query;
+    const { messageIds } = req.body;
+    const userId = req.user._id;
 
-    if (!q) return res.status(400).json({ message: "Search query required" });
+    if (!Array.isArray(messageIds)) {
+      return res.status(400).json({ message: "messageIds must be an array" });
+    }
 
-    const messages = await Message.find({
-      conversationId,
-      $text: { $search: q },
-    }).sort({ createdAt: -1 }).limit(50);
+    const deleted = [];
+    const skipped = [];
+    const conversationsToUpdate = new Map();
 
-    res.status(200).json(messages);
+    for (const id of messageIds) {
+      const message = await Message.findById(id);
+      if (!message || message.senderId.toString() !== userId.toString()) {
+        skipped.push(id);
+        continue;
+      }
+
+      message.deletedAt = new Date();
+      await message.save();
+      deleted.push(id);
+
+      if (message.conversationId) {
+        if (!conversationsToUpdate.has(message.conversationId.toString())) {
+           const conv = await Conversation.findById(message.conversationId);
+           if (conv) conversationsToUpdate.set(message.conversationId.toString(), conv);
+        }
+        
+        const conversation = conversationsToUpdate.get(message.conversationId.toString());
+        if (conversation) {
+          conversation.participants.forEach(p => {
+            const socketId = getReceiverSocketId(p);
+            if (socketId) {
+              io.to(socketId).emit("messageDeleted", { messageId: message._id, deletedAt: message.deletedAt });
+            }
+          });
+        }
+      }
+    }
+
+    res.status(200).json({ deleted, skipped });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const togglePinMessage = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user._id;
+
+    const message = await Message.findById(id);
+    if (!message) return res.status(404).json({ message: "Message not found" });
+
+    const conversation = await Conversation.findById(message.conversationId);
+    if (!conversation) return res.status(404).json({ message: "Conversation not found" });
+
+    const isParticipant = conversation.participants.some(p => p.toString() === userId.toString());
+    if (!isParticipant) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    message.pinned = !message.pinned;
+    message.pinnedAt = message.pinned ? new Date() : null;
+    await message.save();
+
+    conversation.participants.forEach(p => {
+      const socketId = getReceiverSocketId(p);
+      if (socketId) {
+        io.to(socketId).emit("messagePinned", { messageId: message._id, pinned: message.pinned, pinnedAt: message.pinnedAt });
+      }
+    });
+
+    res.status(200).json(message);
   } catch (error) {
     next(error);
   }
