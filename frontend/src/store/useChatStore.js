@@ -2,6 +2,7 @@ import { create } from "zustand";
 import toast from "react-hot-toast";
 import { axiosInstance } from "../lib/axios";
 import { useAuthStore } from "./useAuthStore";
+import { useSoundStore } from "./useSoundStore";
 import { generateConversationKey, encryptKeyForRecipient, decryptConversationKey, encryptMessageText, decryptMessageText } from "../lib/e2ee";
 
 export const useChatStore = create((set, get) => ({
@@ -14,8 +15,12 @@ export const useChatStore = create((set, get) => ({
   isUsersLoading: false,
   isMessagesLoading: false,
   isTyping: false,
+  replyingTo: null,
   unreadCounts: {},
   hasMoreMessages: true,
+  isSelectMode: false,
+  blockedByThemConversations: [],
+  setBlockedByThem: (conversationId) => set((state) => ({ blockedByThemConversations: [...state.blockedByThemConversations, conversationId] })),
 
   getUsers: async () => {
     set({ isUsersLoading: true });
@@ -65,17 +70,23 @@ export const useChatStore = create((set, get) => ({
   },
 
   searchMessages: async (query) => {
-    const { selectedConversation, getMessages } = get();
+    const { selectedConversation, getMessages, decryptMessages } = get();
     if (!selectedConversation) return;
-    
+
     if (!query) {
       return getMessages(selectedConversation._id);
     }
 
     set({ isMessagesLoading: true });
     try {
-      const res = await axiosInstance.get(`/messages/search/${selectedConversation._id}?q=${encodeURIComponent(query)}`);
-      set({ messages: res.data.reverse() });
+      // Search has to happen client-side, after decryption — a MongoDB text
+      // index can only match the stored ciphertext for E2EE conversations,
+      // which never matches a real search term.
+      const res = await axiosInstance.get(`/messages/${selectedConversation._id}?limit=200`);
+      const decrypted = decryptMessages(res.data);
+      const q = query.trim().toLowerCase();
+      const filtered = decrypted.filter(m => m.text?.toLowerCase().includes(q));
+      set({ messages: filtered });
     } catch (error) {
       toast.error(error.response?.data?.message || "Search failed");
     } finally {
@@ -100,7 +111,7 @@ export const useChatStore = create((set, get) => ({
   },
 
   sendMessage: async (messageData) => {
-    const { selectedConversation, messages, activeSymmetricKey } = get();
+    const { selectedConversation, messages, activeSymmetricKey, replyingTo, clearReplyingTo } = get();
     try {
       let currentSymKey = activeSymmetricKey;
       let newEncryptedKeys = undefined;
@@ -137,6 +148,10 @@ export const useChatStore = create((set, get) => ({
       if (newEncryptedKeys) {
         payload.encryptedKeys = newEncryptedKeys;
       }
+      if (replyingTo) {
+        payload.replyTo = replyingTo._id;
+        clearReplyingTo();
+      }
 
       const res = await axiosInstance.post(`/messages/send/${selectedConversation._id}`, payload);
       const decryptedMsg = { ...res.data };
@@ -145,7 +160,14 @@ export const useChatStore = create((set, get) => ({
       }
       set({ messages: [...messages, decryptedMsg] });
     } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to send message");
+      if (error.response?.data?.code === "BLOCKED_ME") {
+        get().setBlockedByThem(selectedConversation._id);
+        toast.error("Message couldn't be sent");
+      } else if (error.response?.data?.code === "BLOCKED_BY_ME") {
+        toast.error("You blocked this user.");
+      } else {
+        toast.error(error.response?.data?.message || "Failed to send message");
+      }
     }
   },
 
@@ -170,6 +192,71 @@ export const useChatStore = create((set, get) => ({
       await axiosInstance.delete(`/messages/${messageId}`);
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to delete message");
+    }
+  },
+
+  bulkDeleteMessages: async (messageIds) => {
+    try {
+      const res = await axiosInstance.post(`/messages/bulk-delete`, { messageIds });
+      const { deleted, skipped } = res.data;
+      if (deleted.length > 0) {
+        toast.success(`${deleted.length} message${deleted.length > 1 ? 's' : ''} deleted` + (skipped.length > 0 ? ` (${skipped.length} skipped)` : ''));
+      } else if (skipped.length > 0) {
+        toast.error(`Failed to delete messages (not authorized)`);
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to bulk delete messages");
+    }
+  },
+
+  togglePinMessage: async (messageId) => {
+    try {
+      await axiosInstance.patch(`/messages/${messageId}/pin`);
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to toggle pin");
+    }
+  },
+
+  forwardMessage: async (messageData, targetConversationId) => {
+    const { conversations } = get();
+    const targetConversation = conversations.find(c => c._id === targetConversationId);
+    if (!targetConversation) return;
+
+    try {
+      let currentSymKey = null;
+      let newEncryptedKeys = undefined;
+      const { authUser } = useAuthStore.getState();
+      const myPrivateKey = localStorage.getItem(`chatty_priv_${authUser._id}`);
+
+      const hasExistingKey = targetConversation.encryptedKeys && Object.keys(targetConversation.encryptedKeys).length > 0;
+
+      if (hasExistingKey && targetConversation.encryptedKeys[authUser._id] && myPrivateKey) {
+        currentSymKey = decryptConversationKey(targetConversation.encryptedKeys[authUser._id], myPrivateKey);
+      }
+
+      if (!currentSymKey && messageData.text && !hasExistingKey) {
+        currentSymKey = generateConversationKey();
+        newEncryptedKeys = {};
+        targetConversation.participants.forEach(p => {
+          if (p.publicKey) {
+             newEncryptedKeys[p._id] = encryptKeyForRecipient(currentSymKey, p.publicKey);
+          }
+        });
+      }
+
+      const payload = { ...messageData, forwardedFrom: true };
+      if (currentSymKey && payload.text) {
+        payload.text = encryptMessageText(payload.text, currentSymKey);
+        payload.isEncrypted = true;
+      }
+      if (newEncryptedKeys) {
+        payload.encryptedKeys = newEncryptedKeys;
+      }
+
+      await axiosInstance.post(`/messages/send/${targetConversationId}`, payload);
+      toast.success("Message forwarded");
+    } catch (error) {
+      toast.error("Failed to forward message");
     }
   },
 
@@ -246,6 +333,11 @@ export const useChatStore = create((set, get) => ({
     socket.on("newMessage", (newMessage) => {
       const { selectedConversation, unreadCounts } = get();
       
+      const { authUser } = useAuthStore.getState();
+      if (newMessage.senderId !== authUser._id) {
+        useSoundStore.getState().playMessageReceived();
+      }
+
       const isMessageInSelectedConv = selectedConversation && newMessage.conversationId === selectedConversation._id;
       if (isMessageInSelectedConv) {
         let msgToAdd = { ...newMessage };
@@ -345,6 +437,14 @@ export const useChatStore = create((set, get) => ({
       }));
     });
 
+    socket.on("messagePinned", ({ messageId, pinned, pinnedAt }) => {
+      set((state) => ({
+        messages: state.messages.map(msg =>
+          msg._id === messageId ? { ...msg, pinned, pinnedAt } : msg
+        )
+      }));
+    });
+
     socket.on("groupUpdated", (updatedGroup) => {
       if (updatedGroup.deleted) {
         set((state) => ({
@@ -373,12 +473,19 @@ export const useChatStore = create((set, get) => ({
       socket.off("messageReaction");
       socket.off("messageEdited");
       socket.off("messageDeleted");
+      socket.off("messagePinned");
       socket.off("groupUpdated");
     }
   },
 
+  setReplyingTo: (message) => set({ replyingTo: message }),
+
+  clearReplyingTo: () => set({ replyingTo: null }),
+
+  setIsSelectMode: (isSelectMode) => set({ isSelectMode }),
+
   setSelectedConversation: (selectedConversation) => {
-    set({ selectedConversation, isTyping: false, activeSymmetricKey: null });
+    set({ selectedConversation, isTyping: false, activeSymmetricKey: null, replyingTo: null });
     if (selectedConversation) {
       if (selectedConversation._id) {
         get().clearUnreadCount(selectedConversation._id);

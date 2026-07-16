@@ -22,6 +22,7 @@ export const useAuthStore = create((set, get) => ({
 
       set({ authUser: res.data });
       get().connectSocket();
+      get().subscribeToPush();
       get().setupE2EE(res.data);
     } catch (error) {
       console.log("Error in checkAuth:", error);
@@ -38,6 +39,7 @@ export const useAuthStore = create((set, get) => ({
       set({ authUser: res.data });
       toast.success("Account created successfully");
       get().connectSocket();
+      get().subscribeToPush();
       get().setupE2EE(res.data);
     } catch (error) {
       toast.error(error.response.data.message);
@@ -66,8 +68,13 @@ export const useAuthStore = create((set, get) => ({
   subscribeToPush: async () => {
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
     try {
-      const register = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
-      const subscription = await register.pushManager.subscribe({
+      // Service worker is now registered unconditionally in App.jsx
+      const registration = await navigator.serviceWorker.ready;
+
+      // Reuse an existing browser-side subscription if there is one (avoids
+      // re-prompting), but always sync it to the backend below — the backend
+      // record can be missing/stale even when the browser already has one.
+      const subscription = await registration.pushManager.getSubscription() || await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: "BLBzVonKFt1dNGZHZT9i205W1UE066sJGm2LuONQUxLOHsZTbFC7LxAnyGjH_FW8-zrqFHu5r-ldjHJAqs5K8m8",
       });
@@ -114,6 +121,35 @@ export const useAuthStore = create((set, get) => ({
       toast.error(error.response.data.message);
     } finally {
       set({ isUpdatingProfile: false });
+    }
+  },
+
+  blockUser: async (userId) => {
+    try {
+      const res = await axiosInstance.post(`/users/${userId}/block`);
+      set({ authUser: res.data });
+      toast.success("User blocked");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to block user");
+    }
+  },
+
+  unblockUser: async (userId) => {
+    try {
+      const res = await axiosInstance.post(`/users/${userId}/unblock`);
+      set({ authUser: res.data });
+      toast.success("User unblocked");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to unblock user");
+    }
+  },
+
+  togglePinConversation: async (conversationId) => {
+    try {
+      const res = await axiosInstance.post(`/users/conversations/${conversationId}/pin`);
+      set({ authUser: res.data });
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to pin/unpin conversation");
     }
   },
 
