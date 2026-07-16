@@ -187,6 +187,12 @@ const ChatContainer = () => {
         className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-4 space-y-1 scrollbar-thin chat-wallpaper"
         ref={scrollContainerRef}
         onScroll={handleScroll}
+        onClick={(e) => {
+          // Tapping empty space (not a message bubble) dismisses the
+          // tap-opened action menu — the touch-device equivalent of
+          // onMouseLeave, which only fires for real pointer devices.
+          if (e.target === e.currentTarget) setHoveredMessage(null);
+        }}
       >
         {isMessagesLoading && messages.length > 0 && (
           <div className="text-center text-xs text-ink-faint py-2">Loading earlier messages...</div>
