@@ -81,12 +81,6 @@ export const sendMessage = async (req, res, next) => {
     const { id } = req.params;
     const senderId = req.user._id;
 
-    let imageUrl;
-    if (image) {
-      const uploadResponse = await cloudinary.uploader.upload(image, { resource_type: "auto" });
-      imageUrl = uploadResponse.secure_url;
-    }
-
     let conversation = await Conversation.findById(id).catch(() => null);
     if (!conversation) {
       conversation = await Conversation.findOne({
@@ -112,6 +106,15 @@ export const sendMessage = async (req, res, next) => {
           return res.status(403).json({ code: "BLOCKED_ME", message: "This user has blocked you." });
         }
       }
+    }
+
+    // Uploading only after the block check above — otherwise a blocked
+    // sender could repeatedly burn through the (free-tier) Cloudinary quota
+    // on messages that were always going to be rejected anyway.
+    let imageUrl;
+    if (image) {
+      const uploadResponse = await cloudinary.uploader.upload(image, { resource_type: "auto" });
+      imageUrl = uploadResponse.secure_url;
     }
 
     // Always merge in any newly-supplied encrypted keys, regardless of

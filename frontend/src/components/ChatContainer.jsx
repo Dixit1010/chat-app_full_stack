@@ -36,7 +36,8 @@ const ChatContainer = () => {
     setReplyingTo,
     togglePinMessage,
     isSelectMode,
-    setIsSelectMode
+    setIsSelectMode,
+    isTyping
   } = useChatStore();
   
   const { translateMessage } = useAiStore();
@@ -497,6 +498,26 @@ const ChatContainer = () => {
             </div>
           );
         })}
+
+        {isTyping && (
+          <motion.div
+            {...applyMotion(fadeUp, shouldReduceMotion)}
+            className="flex items-end gap-2 justify-start mb-0.5"
+          >
+            <div className="relative shadow-elevation-1 bg-surface-2 text-ink border border-line-soft rounded-2xl rounded-bl-md px-4 py-3 h-10 flex items-center">
+              <span className="inline-flex items-center gap-1.5">
+                {[0, 1, 2].map((i) => (
+                  <motion.span
+                    key={i}
+                    className="size-1.5 rounded-full bg-ink-faint"
+                    animate={shouldReduceMotion ? { opacity: [0.4, 1, 0.4] } : { y: [0, -4, 0], opacity: [0.4, 1, 0.4] }}
+                    transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.15, ease: "easeInOut" }}
+                  />
+                ))}
+              </span>
+            </div>
+          </motion.div>
+        )}
       </div>
 
       <MessageInput />
